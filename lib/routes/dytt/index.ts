@@ -11,7 +11,7 @@ import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
 import timezone from '@/utils/timezone';
 
-const domain = 'www.dydytt.net';
+const domain = 'dydytt.net';
 const baseUrl = `https://${domain}`;
 
 export const handler = async (ctx: Context): Promise<Data> => {
@@ -28,17 +28,24 @@ export const handler = async (ctx: Context): Promise<Data> => {
 
     let items: DataItem[] = [];
 
-    items = $('div.co_content8 ul table')
+    items = $('div.co_content8 ul table.tbspan')
         .slice(0, limit)
         .toArray()
-        .map((el): Element => {
+        .map((el): DataItem => {
             const $el: Cheerio<Element> = $(el);
 
-            const $aEl: Cheerio<Element> = $el.find('a.ulink');
+            const $aEls: Cheerio<Element> = $el.find('a.ulink');
+            const $aEl: Cheerio<Element> = $aEls.length > 1 ? $aEls.eq(1) : $aEls.first();
 
             const title: string = $aEl.text();
-            const description: string = $el.find('td').last().text();
-            const pubDateStr: string | undefined = $el.find('font').last().text().split(/：/).pop();
+            const description: string = $el.find('tr').eq(2).find('td').text();
+            const pubDateStr: string | undefined = $el
+                .find('font')
+                .last()
+                .text()
+                .split(/日期：/)
+                .pop()
+                ?.trim();
             const linkUrl: string | undefined = $aEl.attr('href');
             const upDatedStr: string | undefined = pubDateStr;
 
@@ -74,10 +81,10 @@ export const handler = async (ctx: Context): Promise<Data> => {
 
                     const title: string = $$('div.title_all h1 font').text();
 
-                    const $descriptionEl: Cheerio<Element> = $$('div#Zoom span').first();
+                    const $descriptionEl: Cheerio<Element> = $$('div#Zoom').first();
                     const childEls = $descriptionEl.contents().toArray();
                     const centerIdx = childEls.findIndex((node) => node.type === 'tag' && node.name === 'center');
-                    const description: string = (centerIdx === -1 ? childEls : childEls.slice(0, centerIdx)).map((node) => $.html(node)).join('');
+                    const description: string = (centerIdx === -1 ? childEls : childEls.slice(0, centerIdx)).map((node) => $$.html(node)).join('');
 
                     const pubDateStr: string | undefined = item.pubDate ? undefined : $descriptionEl.prev().text().split(/：/).pop();
                     const image: string | undefined = $descriptionEl.find('img').first().attr('src');
@@ -97,7 +104,16 @@ export const handler = async (ctx: Context): Promise<Data> => {
                         language,
                     };
 
-                    const $enclosureEl: Cheerio<Element> = $descriptionEl.find('a[href^="magnet:"]').last();
+                    let $enclosureEl: Cheerio<Element> = $descriptionEl.find('a[href^="magnet:"]').last();
+                    if (!$enclosureEl.length) {
+                        $enclosureEl = $descriptionEl
+                            .find('a')
+                            .filter(function () {
+                                const href = $$(this).attr('href');
+                                return href && (href.includes('magnet:') || href.includes('thunder:') || href.includes('ed2k:'));
+                            })
+                            .last();
+                    }
                     const enclosureUrl: string | undefined = $enclosureEl.attr('href');
 
                     if (enclosureUrl) {
